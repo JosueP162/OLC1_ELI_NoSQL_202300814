@@ -1,0 +1,388 @@
+package analyzer;
+
+import java_cup.runtime.*;
+import controller.ExecutionContext;
+import model.database.Field;
+import model.instructions.*;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+
+/* ============================================================
+   PARSER ELI - CUP
+   ============================================================ */
+
+parser code {:
+    private ExecutionContext ctx;
+    public int error_sync_size() { return 2; }
+    private List<Instruction> instructions = new ArrayList<>();
+
+    public void setContext(ExecutionContext ctx) {
+        this.ctx = ctx;
+    }
+
+    public List<Instruction> getInstructions() {
+        return instructions;
+    }
+
+    @Override
+    public void report_error(String message, Object info) {
+        int linea = 0, columna = 0;
+        if (info instanceof Symbol) {
+            Symbol s = (Symbol) info;
+            linea = s.left;
+            columna = s.right;
+        }
+        if (ctx != null) {
+            ctx.addError("Sintáctico", message, linea, columna);
+        }
+    }
+
+    @Override
+    public void report_fatal_error(String message, Object info) {
+        report_error(message, info);
+    }
+:};
+
+/* ============================================================
+   TERMINALES
+   ============================================================ */
+terminal DATABASE, USE, TABLE, READ, ADD, UPDATE, CLEAR, EXPORT;
+terminal FIELDS, FILTER, STORE, AT, SET;
+terminal TIPO_INT, TIPO_FLOAT, TIPO_BOOL, TIPO_STRING, TIPO_ARRAY, TIPO_OBJECT;
+terminal NULO;
+terminal Boolean BOOLEANO;
+terminal Integer ENTERO;
+terminal Double  DECIMAL;
+terminal String  CADENA, ID;
+terminal IGUAL_IGUAL, DIFERENTE, MAYOR_IGUAL, MENOR_IGUAL, MAYOR, MENOR;
+terminal AND, OR, NOT;
+terminal IGUAL;
+terminal LLAVE_A, LLAVE_C, PAREN_A, PAREN_C, CORCHETE_A, CORCHETE_C;
+terminal PUNTO_COMA, DOS_PUNTOS, COMA, PUNTO, ASTERISCO;
+
+/* ============================================================
+   NO TERMINALES
+   ============================================================ */
+non terminal List<Instruction>    programa;
+non terminal Instruction          instruccion;
+non terminal InstructionDatabase  inst_database;
+non terminal InstructionUse       inst_use;
+non terminal InstructionTable     inst_table;
+non terminal List<Field>          lista_campos_tabla;
+non terminal Field                campo_tabla;
+non terminal String               tipo_dato;
+non terminal InstructionAdd       inst_add;
+non terminal LinkedHashMap        lista_pares;
+non terminal Object               valor_literal;
+non terminal List                 lista_array;
+non terminal List                 lista_array_vals;
+non terminal InstructionRead      inst_read;
+non terminal List<String>         lista_campos_read;
+non terminal FilterExpression     expresion_filter;
+non terminal InstructionUpdate    inst_update;
+non terminal LinkedHashMap        lista_set;
+non terminal InstructionClear     inst_clear;
+non terminal InstructionExport    inst_export;
+non terminal String               nombre_archivo;
+
+/* ============================================================
+   PRECEDENCIAS
+   ============================================================ */
+precedence left OR;
+precedence left AND;
+precedence right NOT;
+precedence left MAYOR, MENOR, MAYOR_IGUAL, MENOR_IGUAL, IGUAL_IGUAL, DIFERENTE;
+precedence left PAREN_A, PAREN_C;
+
+/* ============================================================
+   GRAMÁTICA
+   ============================================================ */
+
+start with programa;
+
+programa ::=
+    programa:p instruccion:i
+    {:
+        p.add(i);
+        RESULT = p;
+    :}
+    |
+    instruccion:i
+    {:
+        List<Instruction> list = new ArrayList<>();
+        list.add(i);
+        RESULT = list;
+    :}
+    ;
+
+instruccion ::=
+    inst_database:i  {: RESULT = i; :}
+    | inst_use:i     {: RESULT = i; :}
+    | inst_table:i   {: RESULT = i; :}
+    | inst_add:i     {: RESULT = i; :}
+    | inst_read:i    {: RESULT = i; :}
+    | inst_update:i  {: RESULT = i; :}
+    | inst_clear:i   {: RESULT = i; :}
+    | inst_export:i  {: RESULT = i; :}
+    ;
+
+/* ============================================================
+   DATABASE
+   ============================================================ */
+inst_database ::=
+    DATABASE:d ID:nombre LLAVE_A STORE AT CADENA:ruta PUNTO_COMA LLAVE_C
+    {:
+        RESULT = new InstructionDatabase(nombre, ruta, dleft, dright);
+    :}
+    |
+    DATABASE:d ID:nombre LLAVE_A LLAVE_C
+    {:
+        RESULT = new InstructionDatabase(nombre, null, dleft, dright);
+    :}
+    ;
+
+/* ============================================================
+   USE
+   ============================================================ */
+inst_use ::=
+    USE:u ID:nombre PUNTO_COMA
+    {:
+        RESULT = new InstructionUse(nombre, uleft, uright);
+    :}
+    ;
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+inst_table ::=
+    TABLE:t ID:nombre LLAVE_A lista_campos_tabla:campos LLAVE_C
+    {:
+        RESULT = new InstructionTable(nombre, campos, tleft, tright);
+    :}
+    ;
+
+lista_campos_tabla ::=
+    lista_campos_tabla:list campo_tabla:c
+    {:
+        list.add(c);
+        RESULT = list;
+    :}
+    |
+    campo_tabla:c
+    {:
+        List<Field> list = new ArrayList<>();
+        list.add(c);
+        RESULT = list;
+    :}
+    ;
+
+campo_tabla ::=
+    ID:nombre DOS_PUNTOS tipo_dato:tipo PUNTO_COMA
+    {:
+        RESULT = new Field(nombre, tipo);
+    :}
+    |
+    ID:nombre DOS_PUNTOS tipo_dato:tipo
+    {:
+        RESULT = new Field(nombre, tipo);
+    :}
+    ;
+
+tipo_dato ::=
+    TIPO_INT     {: RESULT = "int"; :}
+    | TIPO_FLOAT {: RESULT = "float"; :}
+    | TIPO_BOOL  {: RESULT = "bool"; :}
+    | TIPO_STRING {: RESULT = "string"; :}
+    | TIPO_ARRAY  {: RESULT = "array"; :}
+    | TIPO_OBJECT {: RESULT = "object"; :}
+    ;
+
+/* ============================================================
+   ADD
+   ============================================================ */
+inst_add ::=
+    ADD:a ID:nombre LLAVE_A lista_pares:pares LLAVE_C PUNTO_COMA
+    {:
+        RESULT = new InstructionAdd(nombre, pares, aleft, aright);
+    :}
+    ;
+
+lista_pares ::=
+    lista_pares:map COMA ID:key DOS_PUNTOS valor_literal:val
+    {:
+        map.put(key, val);
+        RESULT = map;
+    :}
+    |
+    ID:key DOS_PUNTOS valor_literal:val
+    {:
+        LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+        map.put(key, val);
+        RESULT = map;
+    :}
+    ;
+
+valor_literal ::=
+    ENTERO:v    {: RESULT = v; :}
+    | DECIMAL:v {: RESULT = v; :}
+    | CADENA:v  {: RESULT = v; :}
+    | BOOLEANO:v {: RESULT = v; :}
+    | NULO      {: RESULT = null; :}
+    | lista_array:v {: RESULT = v; :}
+    ;
+
+lista_array ::=
+    CORCHETE_A lista_array_vals:vals CORCHETE_C
+    {:
+        RESULT = vals;
+    :}
+    |
+    CORCHETE_A CORCHETE_C
+    {:
+        RESULT = new ArrayList<>();
+    :}
+    ;
+
+lista_array_vals ::=
+    lista_array_vals:list COMA valor_literal:v
+    {:
+        list.add(v);
+        RESULT = list;
+    :}
+    |
+    valor_literal:v
+    {:
+        List<Object> list = new ArrayList<>();
+        list.add(v);
+        RESULT = list;
+    :}
+    ;
+
+/* ============================================================
+   READ
+   ============================================================ */
+inst_read ::=
+    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA LLAVE_C PUNTO_COMA
+    {:
+        RESULT = new InstructionRead(nombre, campos, false, expr, rleft, rright);
+    :}
+    |
+    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA LLAVE_C PUNTO_COMA
+    {:
+        RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright);
+    :}
+    |
+    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA LLAVE_C PUNTO_COMA
+    {:
+        RESULT = new InstructionRead(nombre, campos, false, null, rleft, rright);
+    :}
+    |
+    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA LLAVE_C PUNTO_COMA
+    {:
+        RESULT = new InstructionRead(nombre, null, true, null, rleft, rright);
+    :}
+    ;
+
+lista_campos_read ::=
+    lista_campos_read:list COMA ID:campo
+    {:
+        list.add(campo);
+        RESULT = list;
+    :}
+    |
+    ID:campo
+    {:
+        List<String> list = new ArrayList<>();
+        list.add(campo);
+        RESULT = list;
+    :}
+    ;
+
+/* ============================================================
+   EXPRESIONES DE FILTRADO
+   ============================================================ */
+expresion_filter ::=
+    expresion_filter:izq OR expresion_filter:der
+    {:
+        RESULT = new FilterExpression.Or(izq, der);
+    :}
+    |
+    expresion_filter:izq AND expresion_filter:der
+    {:
+        RESULT = new FilterExpression.And(izq, der);
+    :}
+    |
+    NOT expresion_filter:expr
+    {:
+        RESULT = new FilterExpression.Not(expr);
+    :}
+    |
+    PAREN_A expresion_filter:expr PAREN_C
+    {:
+        RESULT = expr;
+    :}
+    |
+    ID:campo IGUAL_IGUAL  valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "==",  val); :}
+    | ID:campo DIFERENTE    valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "!=",  val); :}
+    | ID:campo MAYOR        valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, ">",   val); :}
+    | ID:campo MENOR        valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "<",   val); :}
+    | ID:campo MAYOR_IGUAL  valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, ">=",  val); :}
+    | ID:campo MENOR_IGUAL  valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "<=",  val); :}
+    ;
+
+/* ============================================================
+   UPDATE
+   ============================================================ */
+inst_update ::=
+    UPDATE:u ID:nombre LLAVE_A SET DOS_PUNTOS lista_set:sets PUNTO_COMA FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA LLAVE_C PUNTO_COMA
+    {:
+        RESULT = new InstructionUpdate(nombre, sets, expr, uleft, uright);
+    :}
+    |
+    UPDATE:u ID:nombre LLAVE_A SET DOS_PUNTOS lista_set:sets PUNTO_COMA LLAVE_C PUNTO_COMA
+    {:
+        RESULT = new InstructionUpdate(nombre, sets, null, uleft, uright);
+    :}
+    ;
+
+lista_set ::=
+    lista_set:map COMA ID:key IGUAL valor_literal:val
+    {:
+        map.put(key, val);
+        RESULT = map;
+    :}
+    |
+    ID:key IGUAL valor_literal:val
+    {:
+        LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+        map.put(key, val);
+        RESULT = map;
+    :}
+    ;
+
+/* ============================================================
+   CLEAR
+   ============================================================ */
+inst_clear ::=
+    CLEAR:c ID:nombre PUNTO_COMA
+    {:
+        RESULT = new InstructionClear(nombre, cleft, cright);
+    :}
+    ;
+
+/* ============================================================
+   EXPORT
+   ============================================================ */
+inst_export ::=
+    EXPORT:e nombre_archivo:archivo PUNTO_COMA
+    {:
+        RESULT = new InstructionExport(archivo, eleft, eright);
+    :}
+    ;
+
+nombre_archivo ::=
+    CADENA:s   {: RESULT = s; :}
+    | ID:s PUNTO ID:ext {: RESULT = s + "." + ext; :}
+    ;
