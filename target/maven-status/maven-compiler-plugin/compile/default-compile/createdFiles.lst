@@ -31,5 +31,4 @@ model\instructions\InstructionUse.class
 model\instructions\InstructionExport.class
 view\MainWindow$1.class
 analyzer\Parser$CUP$Parser$actions.class
-view\MainWindow$4.class
 model\instructions\InstructionClear.class

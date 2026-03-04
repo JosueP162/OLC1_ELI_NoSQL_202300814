@@ -1,0 +1,30 @@
+{
+  "database": "universidad",
+  "tables": {
+    "estudiantes": {
+      "schema": {
+        "id": "int",
+        "nombre": "string",
+        "edad": "int"
+      },
+      "records": [
+      ]
+    },
+    "profesores": {
+      "schema": {
+        "id": "int",
+        "nombre": "string",
+        "salario": "float",
+        "departamento": "string"
+      },
+      "records": [
+        {
+          "id": 1,
+          "nombre": "Carlos",
+          "salario": 1500.5,
+          "departamento": "Matemáticas"
+        }
+      ]
+    }
+  }
+}

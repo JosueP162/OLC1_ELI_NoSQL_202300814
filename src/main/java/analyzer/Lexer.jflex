@@ -152,7 +152,7 @@ COMENTARIO_MULTI    = "#*"[^#]*("#"[^*][^#]*)*"#*"
 "*"          { return token(sym.ASTERISCO, "ASTERISCO"); }
 
 /* ========== ERRORES LÉXICOS ========== */
-.            {
+[^]           {
     if (ctx != null) {
         ctx.addError("Léxico",
             "El carácter '" + yytext() + "' no pertenece al lenguaje.",

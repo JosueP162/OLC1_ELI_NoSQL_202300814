@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="maven-antrun-" default="main">
+  <target name="main">
+    <java fork="true" classname="java_cup.Main" failonerror="false">
+      <classpath>
+        <pathelement location="${settings.localRepository}/cup/java-cup/11b/java-cup-11b.jar" />
+      </classpath>
+      <arg value="-destdir" />
+      <arg value="src/main/java/analyzer" />
+      <arg value="-parser" />
+      <arg value="Parser" />
+      <arg value="-symbols" />
+      <arg value="sym" />
+      <arg value="src/main/java/analyzer/Parser.cup" />
+    </java>
+  </target>
+</project>

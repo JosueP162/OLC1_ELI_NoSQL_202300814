@@ -33,7 +33,9 @@ public class InstructionDatabase extends Instruction {
         }
 
         ctx.addDatabase(db);
-        ctx.print(">> Base de datos '" + nombreDatabase + "' creada. Ruta: " + db.getRutaPersistencia());
+        java.io.File archivoJson = new java.io.File(db.getRutaPersistencia());
+        ctx.print(">> Base de datos '" + nombreDatabase + "' creada.");
+        ctx.print("   Archivo JSON: " + archivoJson.getAbsolutePath());
     }
 
     public String getNombreDatabase() { return nombreDatabase; }

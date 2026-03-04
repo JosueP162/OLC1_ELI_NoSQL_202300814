@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
-         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.usac.EliNoSQL</groupId>
     <artifactId>Eli_NoSQL</artifactId>
@@ -16,15 +16,129 @@
     </properties>
 
     <dependencies>
+        <!-- Runtime de CUP (necesario para ejecutar el parser) -->
         <dependency>
             <groupId>cup</groupId>
             <artifactId>java-cup-runtime</artifactId>
             <version>11b</version>
         </dependency>
+        <!-- Generador CUP (necesario para compilar el parser) -->
         <dependency>
             <groupId>cup</groupId>
             <artifactId>java-cup</artifactId>
             <version>11b</version>
         </dependency>
+        <!-- JFlex como dependencia para poder invocar su Main -->
+        <dependency>
+            <groupId>de.jflex</groupId>
+            <artifactId>jflex</artifactId>
+            <version>1.9.1</version>
+        </dependency>
     </dependencies>
-</project>  
+
+    <build>
+        <plugins>
+
+            <!-- ================================================
+                 PASO 1: Generar Lexer.java desde Lexer.jflex
+                 Ejecutar con: mvn jflex:generate
+                 O automaticamente antes de compilar
+                 ================================================ -->
+            <plugin>
+                <groupId>de.jflex</groupId>
+                <artifactId>jflex-maven-plugin</artifactId>
+                <version>1.9.1</version>
+                <executions>
+                    <execution>
+                        <id>generate-lexer</id>
+                        <!-- generate-sources corre ANTES de compile automaticamente -->
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Carpeta donde esta el .jflex -->
+                            <sourceDirectory>src/main/java/analyzer</sourceDirectory>
+                            <!-- Carpeta donde se genera el Lexer.java -->
+                            <outputDirectory>src/main/java</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- ================================================
+                 PASO 2: Generar parser.java y sym.java desde Parser.cup
+                 Se ejecuta tambien en generate-sources (antes de compile)
+                 ================================================ -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-parser</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <java classname="java_cup.Main" fork="true" failonerror="false">
+                                    <classpath>
+                                        <pathelement location="${settings.localRepository}/cup/java-cup/11b/java-cup-11b.jar"/>
+                                    </classpath>
+                                    <arg value="-destdir"/>
+                                    <arg value="src/main/java/analyzer"/>
+                                    <arg value="-parser"/>
+                                    <arg value="Parser"/>
+                                    <arg value="-symbols"/>
+                                    <arg value="sym"/>
+                                    <arg value="src/main/java/analyzer/Parser.cup"/>
+                                </java>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>cup</groupId>
+                        <artifactId>java-cup</artifactId>
+                        <version>11b</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <!-- ================================================
+                 PASO 3: Compilar el proyecto
+                 ================================================ -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>24</release>
+                    <encoding>UTF-8</encoding>
+                    <!-- Suprimir warnings de deprecation y unchecked (CUP los genera) -->
+                    <compilerArgs>
+                        <arg>-Xlint:-deprecation</arg>
+                        <arg>-Xlint:-unchecked</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
+            <!-- ================================================
+                 Ejecutar la aplicacion con: mvn exec:java
+                 ================================================ -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <mainClass>view.MainWindow</mainClass>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>

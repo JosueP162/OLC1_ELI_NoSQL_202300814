@@ -1,0 +1,15 @@
+{
+  "table": "pacientes",
+  "fields": {
+    "nombre": "string",
+    "enfermedad": "string",
+    "edad": "int"
+  },
+  "records": [
+    {
+      "nombre": "Juan",
+      "enfermedad": "Gripe",
+      "edad": 45
+    }
+  ]
+}

@@ -10,20 +10,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 /* ============================================================
-   PARSER ELI - CUP
+   PARSER ELI-NOSQL - CUP
+   Organización de Lenguajes y Compiladores 1 - USAC
    ============================================================ */
 
 parser code {:
     private ExecutionContext ctx;
+
     public int error_sync_size() { return 2; }
-    private List<Instruction> instructions = new ArrayList<>();
 
     public void setContext(ExecutionContext ctx) {
         this.ctx = ctx;
-    }
-
-    public List<Instruction> getInstructions() {
-        return instructions;
     }
 
     @Override
@@ -31,7 +28,7 @@ parser code {:
         int linea = 0, columna = 0;
         if (info instanceof Symbol) {
             Symbol s = (Symbol) info;
-            linea = s.left;
+            linea   = s.left;
             columna = s.right;
         }
         if (ctx != null) {
@@ -65,27 +62,27 @@ terminal PUNTO_COMA, DOS_PUNTOS, COMA, PUNTO, ASTERISCO;
 /* ============================================================
    NO TERMINALES
    ============================================================ */
-non terminal List<Instruction>    programa;
-non terminal Instruction          instruccion;
-non terminal InstructionDatabase  inst_database;
-non terminal InstructionUse       inst_use;
-non terminal InstructionTable     inst_table;
-non terminal List<Field>          lista_campos_tabla;
-non terminal Field                campo_tabla;
-non terminal String               tipo_dato;
-non terminal InstructionAdd       inst_add;
-non terminal LinkedHashMap        lista_pares;
-non terminal Object               valor_literal;
-non terminal List                 lista_array;
-non terminal List                 lista_array_vals;
-non terminal InstructionRead      inst_read;
-non terminal List<String>         lista_campos_read;
-non terminal FilterExpression     expresion_filter;
-non terminal InstructionUpdate    inst_update;
-non terminal LinkedHashMap        lista_set;
-non terminal InstructionClear     inst_clear;
-non terminal InstructionExport    inst_export;
-non terminal String               nombre_archivo;
+non terminal List<Instruction>   programa;
+non terminal Instruction         instruccion;
+non terminal InstructionDatabase inst_database;
+non terminal InstructionUse      inst_use;
+non terminal InstructionTable    inst_table;
+non terminal List<Field>         lista_campos_tabla;
+non terminal Field               campo_tabla;
+non terminal String              tipo_dato;
+non terminal InstructionAdd      inst_add;
+non terminal LinkedHashMap       lista_pares;
+non terminal Object              valor_literal;
+non terminal List                lista_array;
+non terminal List                lista_array_vals;
+non terminal InstructionRead     inst_read;
+non terminal List<String>        lista_campos_read;
+non terminal FilterExpression    expresion_filter;
+non terminal InstructionUpdate   inst_update;
+non terminal LinkedHashMap       lista_set;
+non terminal InstructionClear    inst_clear;
+non terminal InstructionExport   inst_export;
+non terminal String              nombre_archivo;
 
 /* ============================================================
    PRECEDENCIAS
@@ -102,19 +99,40 @@ precedence left PAREN_A, PAREN_C;
 
 start with programa;
 
+/* ------------------------------------------------------------
+   PROGRAMA
+   ------------------------------------------------------------ */
 programa ::=
     programa:p instruccion:i
     {:
-        p.add(i);
+        if (i != null) p.add(i);
         RESULT = p;
     :}
+    |
+    /* Error dentro de bloque { } con ; */
+    programa:p error LLAVE_C PUNTO_COMA
+    {: RESULT = p; :}
+    |
+    /* Error dentro de bloque { } sin ; */
+    programa:p error LLAVE_C
+    {: RESULT = p; :}
+    |
+    /* Error hasta el siguiente ; */
+    programa:p error PUNTO_COMA
+    {: RESULT = p; :}
     |
     instruccion:i
     {:
         List<Instruction> list = new ArrayList<>();
-        list.add(i);
+        if (i != null) list.add(i);
         RESULT = list;
     :}
+    |
+    error LLAVE_C PUNTO_COMA
+    {: RESULT = new ArrayList<>(); :}
+    |
+    error PUNTO_COMA
+    {: RESULT = new ArrayList<>(); :}
     ;
 
 instruccion ::=
@@ -166,14 +184,14 @@ inst_table ::=
 lista_campos_tabla ::=
     lista_campos_tabla:list campo_tabla:c
     {:
-        list.add(c);
+        if (c != null) list.add(c);
         RESULT = list;
     :}
     |
     campo_tabla:c
     {:
         List<Field> list = new ArrayList<>();
-        list.add(c);
+        if (c != null) list.add(c);
         RESULT = list;
     :}
     ;
@@ -191,11 +209,11 @@ campo_tabla ::=
     ;
 
 tipo_dato ::=
-    TIPO_INT     {: RESULT = "int"; :}
-    | TIPO_FLOAT {: RESULT = "float"; :}
-    | TIPO_BOOL  {: RESULT = "bool"; :}
+    TIPO_INT      {: RESULT = "int";    :}
+    | TIPO_FLOAT  {: RESULT = "float";  :}
+    | TIPO_BOOL   {: RESULT = "bool";   :}
     | TIPO_STRING {: RESULT = "string"; :}
-    | TIPO_ARRAY  {: RESULT = "array"; :}
+    | TIPO_ARRAY  {: RESULT = "array";  :}
     | TIPO_OBJECT {: RESULT = "object"; :}
     ;
 
@@ -225,12 +243,12 @@ lista_pares ::=
     ;
 
 valor_literal ::=
-    ENTERO:v    {: RESULT = v; :}
-    | DECIMAL:v {: RESULT = v; :}
-    | CADENA:v  {: RESULT = v; :}
-    | BOOLEANO:v {: RESULT = v; :}
-    | NULO      {: RESULT = null; :}
-    | lista_array:v {: RESULT = v; :}
+    ENTERO:v        {: RESULT = v;    :}
+    | DECIMAL:v     {: RESULT = v;    :}
+    | CADENA:v      {: RESULT = v;    :}
+    | BOOLEANO:v    {: RESULT = v;    :}
+    | NULO          {: RESULT = null; :}
+    | lista_array:v {: RESULT = v;    :}
     ;
 
 lista_array ::=
@@ -262,33 +280,134 @@ lista_array_vals ::=
 
 /* ============================================================
    READ
+
+   La recuperación de tokens basura (ej: $ $ $ $) se hace con
+   "error" justo antes del LLAVE_C de cierre. CUP descarta
+   todos los tokens inválidos hasta encontrar } de una sola vez.
+
+   expresion_filter NO tiene reglas de recuperación propias —
+   eso evitaba que el parser se confundiera y descartara el read.
    ============================================================ */
 inst_read ::=
-    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA LLAVE_C PUNTO_COMA
-    {:
-        RESULT = new InstructionRead(nombre, campos, false, expr, rleft, rright);
-    :}
+
+    /* ── fields: lista + filter ── */
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+    LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, campos, false, expr, rleft, rright); :}
     |
-    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA LLAVE_C PUNTO_COMA
-    {:
-        RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright);
-    :}
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+    LLAVE_C
+    {: RESULT = new InstructionRead(nombre, campos, false, expr, rleft, rright); :}
     |
-    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA LLAVE_C PUNTO_COMA
-    {:
-        RESULT = new InstructionRead(nombre, campos, false, null, rleft, rright);
-    :}
+
+    /* ── fields: lista + filter + basura al final (ej: $ $ $ $) ── */
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+        error
+    LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, campos, false, expr, rleft, rright); :}
     |
-    READ:r ID:nombre LLAVE_A FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA LLAVE_C PUNTO_COMA
-    {:
-        RESULT = new InstructionRead(nombre, null, true, null, rleft, rright);
-    :}
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+        error
+    LLAVE_C
+    {: RESULT = new InstructionRead(nombre, campos, false, expr, rleft, rright); :}
+    |
+
+    /* ── fields: * + filter ── */
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+    LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright); :}
+    |
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+    LLAVE_C
+    {: RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright); :}
+    |
+
+    /* ── fields: * + filter + basura al final ── */
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+        error
+    LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright); :}
+    |
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+        error
+    LLAVE_C
+    {: RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright); :}
+    |
+
+    /* ── fields: lista, sin filter ── */
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA
+    LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, campos, false, null, rleft, rright); :}
+    |
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS lista_campos_read:campos PUNTO_COMA
+    LLAVE_C
+    {: RESULT = new InstructionRead(nombre, campos, false, null, rleft, rright); :}
+    |
+
+    /* ── fields: *, sin filter ── */
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA
+    LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, null, true, null, rleft, rright); :}
+    |
+    READ:r ID:nombre LLAVE_A
+        FIELDS DOS_PUNTOS ASTERISCO PUNTO_COMA
+    LLAVE_C
+    {: RESULT = new InstructionRead(nombre, null, true, null, rleft, rright); :}
+    |
+
+    /* ── solo filter, sin fields ── */
+    READ:r ID:nombre LLAVE_A
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+    LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright); :}
+    |
+    READ:r ID:nombre LLAVE_A
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+    LLAVE_C
+    {: RESULT = new InstructionRead(nombre, null, true, expr, rleft, rright); :}
+    |
+
+    /* ── read vacío ── */
+    READ:r ID:nombre LLAVE_A LLAVE_C PUNTO_COMA
+    {: RESULT = new InstructionRead(nombre, null, true, null, rleft, rright); :}
+    |
+    READ:r ID:nombre LLAVE_A LLAVE_C
+    {: RESULT = new InstructionRead(nombre, null, true, null, rleft, rright); :}
     ;
 
+/* ------------------------------------------------------------
+   lista_campos_read
+   "COMA error" absorbe campos inválidos (ej: $salario donde
+   el $ fue error léxico y "salario" llega como token suelto).
+   ------------------------------------------------------------ */
 lista_campos_read ::=
     lista_campos_read:list COMA ID:campo
     {:
         list.add(campo);
+        RESULT = list;
+    :}
+    |
+    lista_campos_read:list COMA error
+    {:
         RESULT = list;
     :}
     |
@@ -300,48 +419,59 @@ lista_campos_read ::=
     :}
     ;
 
-/* ============================================================
-   EXPRESIONES DE FILTRADO
-   ============================================================ */
+/* ------------------------------------------------------------
+   expresion_filter
+   Sin reglas de recuperación aquí. La basura al final del
+   filter ($ $ $ $) la absorbe el "error" en inst_read antes
+   del LLAVE_C, de manera limpia y sin ambigüedades.
+   ------------------------------------------------------------ */
 expresion_filter ::=
-    expresion_filter:izq OR expresion_filter:der
-    {:
-        RESULT = new FilterExpression.Or(izq, der);
-    :}
+    expresion_filter:a OR  expresion_filter:b
+    {:  RESULT = new FilterExpression.Or(a, b);  :}
     |
-    expresion_filter:izq AND expresion_filter:der
-    {:
-        RESULT = new FilterExpression.And(izq, der);
-    :}
+    expresion_filter:a AND expresion_filter:b
+    {:  RESULT = new FilterExpression.And(a, b); :}
     |
-    NOT expresion_filter:expr
-    {:
-        RESULT = new FilterExpression.Not(expr);
-    :}
+    NOT expresion_filter:a
+    {:  RESULT = new FilterExpression.Not(a);    :}
     |
-    PAREN_A expresion_filter:expr PAREN_C
-    {:
-        RESULT = expr;
-    :}
+    PAREN_A expresion_filter:a PAREN_C
+    {:  RESULT = a;                              :}
     |
-    ID:campo IGUAL_IGUAL  valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "==",  val); :}
-    | ID:campo DIFERENTE    valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "!=",  val); :}
-    | ID:campo MAYOR        valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, ">",   val); :}
-    | ID:campo MENOR        valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "<",   val); :}
-    | ID:campo MAYOR_IGUAL  valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, ">=",  val); :}
-    | ID:campo MENOR_IGUAL  valor_literal:val {: RESULT = new FilterExpression.Relacional(campo, "<=",  val); :}
+    ID:campo IGUAL_IGUAL valor_literal:val
+    {:  RESULT = new FilterExpression.Relacional(campo, "==", val);  :}
+    |
+    ID:campo DIFERENTE   valor_literal:val
+    {:  RESULT = new FilterExpression.Relacional(campo, "!=", val);  :}
+    |
+    ID:campo MAYOR       valor_literal:val
+    {:  RESULT = new FilterExpression.Relacional(campo, ">",  val);  :}
+    |
+    ID:campo MENOR       valor_literal:val
+    {:  RESULT = new FilterExpression.Relacional(campo, "<",  val);  :}
+    |
+    ID:campo MAYOR_IGUAL valor_literal:val
+    {:  RESULT = new FilterExpression.Relacional(campo, ">=", val);  :}
+    |
+    ID:campo MENOR_IGUAL valor_literal:val
+    {:  RESULT = new FilterExpression.Relacional(campo, "<=", val);  :}
     ;
 
 /* ============================================================
    UPDATE
    ============================================================ */
 inst_update ::=
-    UPDATE:u ID:nombre LLAVE_A SET DOS_PUNTOS lista_set:sets PUNTO_COMA FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA LLAVE_C PUNTO_COMA
+    UPDATE:u ID:nombre LLAVE_A
+        SET DOS_PUNTOS lista_set:sets PUNTO_COMA
+        FILTER DOS_PUNTOS expresion_filter:expr PUNTO_COMA
+    LLAVE_C PUNTO_COMA
     {:
         RESULT = new InstructionUpdate(nombre, sets, expr, uleft, uright);
     :}
     |
-    UPDATE:u ID:nombre LLAVE_A SET DOS_PUNTOS lista_set:sets PUNTO_COMA LLAVE_C PUNTO_COMA
+    UPDATE:u ID:nombre LLAVE_A
+        SET DOS_PUNTOS lista_set:sets PUNTO_COMA
+    LLAVE_C PUNTO_COMA
     {:
         RESULT = new InstructionUpdate(nombre, sets, null, uleft, uright);
     :}
@@ -383,6 +513,9 @@ inst_export ::=
     ;
 
 nombre_archivo ::=
-    CADENA:s   {: RESULT = s; :}
-    | ID:s PUNTO ID:ext {: RESULT = s + "." + ext; :}
+    CADENA:s
+    {:  RESULT = s;             :}
+    |
+    ID:s PUNTO ID:ext
+    {:  RESULT = s + "." + ext; :}
     ;

@@ -8,38 +8,36 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Instruccion: read <tabla> { fields: ...; filter: ...; };
- *
- * CAMBIO: el resultado (tabla ASCII) se envia a ctx.printQueryResult()
- * para mostrarse en el panel Output de la UI, separado de la consola.
+ * Instrucción: read <tabla> { fields: ...; filter: ...; };
+ * Consulta registros de una tabla con filtros opcionales.
  */
 public class InstructionRead extends Instruction {
-
-    private String            nombreTabla;
-    private List<String>      fields;
-    private boolean           allFields;
-    private FilterExpression  filter;
+    private String nombreTabla;
+    private List<String> fields;      // null o lista vacía = todos (*)
+    private boolean allFields;        // true si fields: *
+    private FilterExpression filter;  // null si no hay filtro
 
     public InstructionRead(String nombreTabla, List<String> fields, boolean allFields,
                            FilterExpression filter, int linea, int columna) {
         super(linea, columna);
         this.nombreTabla = nombreTabla;
-        this.fields      = fields;
-        this.allFields   = allFields;
-        this.filter      = filter;
+        this.fields = fields;
+        this.allFields = allFields;
+        this.filter = filter;
     }
 
     @Override
     public void ejecutar(ExecutionContext ctx) {
-
+        // Verificar base de datos activa
         if (!ctx.hasActiveDatabase()) {
-            ctx.addError("Semantico", "No hay base de datos activa para READ.", linea, columna);
+            ctx.addError("Semántico", "No hay base de datos activa para READ.", linea, columna);
             ctx.printError("No hay base de datos activa.");
             return;
         }
 
+        // Verificar que la tabla existe
         if (!ctx.hasActiveTable(nombreTabla)) {
-            ctx.addError("Semantico",
+            ctx.addError("Semántico",
                 "La tabla '" + nombreTabla + "' no existe en la base de datos activa.",
                 linea, columna);
             ctx.printError("Tabla '" + nombreTabla + "' no encontrada.");
@@ -48,21 +46,27 @@ public class InstructionRead extends Instruction {
 
         Table table = ctx.getActiveTable(nombreTabla);
 
-        // Determinar campos a mostrar
+        // Determinar los campos a mostrar
         List<String> camposAMostrar;
         if (allFields || fields == null || fields.isEmpty()) {
             camposAMostrar = table.getFieldNames();
         } else {
+            // Validar que los campos existen
             camposAMostrar = new ArrayList<>();
             for (String campo : fields) {
                 if (!table.hasField(campo)) {
-                    ctx.addError("Semantico",
-                        "El campo '" + campo + "' no existe en la tabla '" + nombreTabla + "'.",
-                        linea, columna);
-                    ctx.printError("Campo '" + campo + "' no encontrado.");
-                    return;
+                    ctx.addError("Semántico",
+                    "El campo '" + campo + "' no existe en la tabla '" + nombreTabla + "'.",
+                     linea, columna);
+                     // ← NO hacer return, solo saltar este campo
+                    continue;
                 }
-                camposAMostrar.add(campo);
+            camposAMostrar.add(campo);
+            }
+
+            // Si no quedó ningún campo válido, usar todos
+            if (camposAMostrar.isEmpty()) {
+            camposAMostrar = table.getFieldNames();
             }
         }
 
@@ -74,23 +78,21 @@ public class InstructionRead extends Instruction {
             }
         }
 
-        // Guardar resultado para posible EXPORT posterior
+        // Guardar resultado para posible EXPORT
         ctx.setLastQueryResult(nombreTabla, camposAMostrar, resultado);
 
         // Mensaje breve en la consola
-        ctx.print(">> READ '" + nombreTabla + "': " + resultado.size() + " registro(s) encontrado(s).");
-
-        // Tabla ASCII -> panel Output de la UI (NO en la consola)
-        String tablaAscii = buildTable(camposAMostrar, resultado);
-        ctx.printQueryResult(nombreTabla, resultado.size(), tablaAscii);
+        ctx.print(">> READ '" + nombreTabla + "': " + resultado.size() + " registro(s).");
+        ctx.printQueryResult(nombreTabla, resultado.size(), buildTable(camposAMostrar, resultado));
+        
     }
 
     /**
-     * Construye una representacion en texto tipo tabla ASCII.
+     * Construye una representación en texto tipo tabla para la consola.
      */
     private String buildTable(List<String> campos, List<Record> records) {
         if (records.isEmpty()) {
-            return "  (Sin resultados)";
+            return "(Sin resultados)";
         }
 
         // Calcular anchos de columnas
@@ -101,7 +103,7 @@ public class InstructionRead extends Instruction {
         for (Record r : records) {
             for (int i = 0; i < campos.size(); i++) {
                 Object val = r.getValue(campos.get(i));
-                String s   = val == null ? "null" : val.toString();
+                String s = val == null ? "null" : val.toString();
                 if (s.length() > anchos[i]) anchos[i] = s.length();
             }
         }
@@ -122,7 +124,7 @@ public class InstructionRead extends Instruction {
             sb.append("| ");
             for (int i = 0; i < campos.size(); i++) {
                 Object val = r.getValue(campos.get(i));
-                String s   = val == null ? "null" : val.toString();
+                String s = val == null ? "null" : val.toString();
                 sb.append(padRight(s, anchos[i])).append(" | ");
             }
             sb.append("\n");
@@ -144,8 +146,8 @@ public class InstructionRead extends Instruction {
         return String.format("%-" + n + "s", s);
     }
 
-    public String           getNombreTabla() { return nombreTabla; }
-    public List<String>     getFields()      { return fields; }
-    public boolean          isAllFields()    { return allFields; }
-    public FilterExpression getFilter()      { return filter; }
+    public String getNombreTabla() { return nombreTabla; }
+    public List<String> getFields() { return fields; }
+    public boolean isAllFields() { return allFields; }
+    public FilterExpression getFilter() { return filter; }
 }
